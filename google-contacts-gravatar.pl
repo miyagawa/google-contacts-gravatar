@@ -62,7 +62,7 @@ sub authorize {
     my $self = shift;
 
     my $resp = $self->authsub->login($self->email, $self->password);
-    $resp->is_success or die "Auth failed against " . $self->email;
+    $resp && $resp->is_success or die "Auth failed against " . $self->email;
     $self->auth_params({ $self->authsub->auth_params });
 }
 
