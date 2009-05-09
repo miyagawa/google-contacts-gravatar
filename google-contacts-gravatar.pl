@@ -69,7 +69,7 @@ sub authorize {
 sub retrieve_contacts {
     my $self = shift;
 
-    my $feed = $self->get_feed("contacts/default/full?max-results=" . $self->max_results);
+    my $feed = $self->get_feed("contacts/default/full", 'max-results' => $self->max_results);
     $self->contacts($feed->{entry});
 }
 
@@ -129,9 +129,11 @@ sub update_photo {
 }
 
 sub get_feed {
-    my($self, $uri) = @_;
+    my($self, $path, %param) = @_;
 
-    my $res = $self->agent->get("http://www.google.com/m8/feeds/$uri", %{ $self->auth_params });
+    my $uri = URI->new("http://www.google.com/m8/feeds/$path");
+       $uri->query_form(%param);
+    my $res = $self->agent->get($uri, %{ $self->auth_params });
     $res->is_success or die "HTTP error for $uri: " . $res->status_line;
 
     return XML::LibXML::Simple->new->XMLin($res->content, KeyAttr => [], ForceArray => [ 'gd:email' ]);
