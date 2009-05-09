@@ -2,6 +2,7 @@
 use strict;
 
 package Google::Contacts::Gravatar;
+use CHI;
 use Gravatar::URL;
 use Any::Moose;
 use Net::Google::AuthSub;
@@ -48,6 +49,13 @@ has contacts => (
 
 has debug => (
     is => 'rw', isa => 'Bool', default => 0,
+);
+
+has cache => (
+    is => 'rw', isa => 'CHI::Driver', default => sub {
+        CHI->new( driver => "File" ),
+    },
+    lazy => 1,
 );
 
 sub run {
@@ -104,8 +112,14 @@ sub find_avatar {
 
     warn "Finding avatar for $email\n" if $self->debug;
 
-    my $url = gravatar_url(email => $email, default => q(""));
-    return $self->agent->get($url)->content;
+    my $photo = $self->cache->get($email);
+    if (!defined $photo) {
+        my $url = gravatar_url(email => $email, default => q(""));
+        $photo = $self->agent->get($url)->content;
+        $self->cache->set($email, $photo || 0); # cache non existent photo as 0
+    }
+
+    return $photo;
 }
 
 sub update_photo {
