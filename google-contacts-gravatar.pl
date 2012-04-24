@@ -55,6 +55,14 @@ has debug => (
     is => 'rw', isa => 'Bool', default => 0,
 );
 
+has captcha => (
+    is => 'rw', isa => 'Str',
+);
+
+has captcha_token => (
+    is => 'rw', isa => 'Str',
+);
+
 has cache => (
     is => 'rw', isa => 'CHI::Driver', default => sub {
         CHI->new( driver => "File" ),
@@ -73,9 +81,26 @@ sub run {
 sub authorize {
     my $self = shift;
 
-    my $resp = $self->authsub->login($self->email, $self->password);
-    $resp && $resp->is_success or die "Auth failed against " . $self->email;
-    $self->auth_params({ $self->authsub->auth_params });
+    my @login_options = ($self->email, $self->password);
+    if ($self->captcha && $self->captcha_token) {
+        push @login_options, (
+            logintoken   => $self->captcha_token,
+            logincaptcha => $self->captcha,
+        );
+    }
+    elsif ($self->captcha || $self->captcha_token) {
+        die "You must give both the --captcha and --captcha_token options together.\n";
+    }
+
+    my $resp = $self->authsub->login(@login_options);
+    if (!$resp->is_success && $resp->error eq 'CaptchaRequired') {
+        warn "CAPTCHA is required. Visit https://www.google.com", $resp->captchaurl, "=", $resp->captchatoken, "\n";
+        die "Run again with --captcha_token ", $resp->captchatoken, " --captcha <captcha-answer>\n";
+    }
+    else {
+        $resp && $resp->is_success or die "Auth failed against " . $self->email . ": " . $resp->error;
+        $self->auth_params({ $self->authsub->auth_params });
+    }
 }
 
 sub retrieve_contacts {
