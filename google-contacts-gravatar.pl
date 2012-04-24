@@ -63,6 +63,10 @@ has captcha_token => (
     is => 'rw', isa => 'Str',
 );
 
+has default_icon => (
+    is => 'rw', isa => 'Str', default => q(""),
+);
+
 has cache => (
     is => 'rw', isa => 'CHI::Driver', default => sub {
         CHI->new( driver => "File" ),
@@ -146,7 +150,7 @@ sub find_avatar {
     $photo = $self->cache->get($email) unless $self->refresh;
 
     if (!defined $photo) {
-        my $url = gravatar_url(email => $email, default => q(""));
+        my $url = gravatar_url(email => $email, default => $self->default_icon);
         $photo = $self->agent->get($url)->content;
         $self->cache->set($email, $photo || 0); # cache non existent photo as 0
     }
