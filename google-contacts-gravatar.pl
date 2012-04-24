@@ -47,6 +47,10 @@ has contacts => (
     is => 'rw', isa => 'ArrayRef',
 );
 
+has refresh => (
+    is => 'rw', isa => 'Bool', default => 0,
+);
+
 has debug => (
     is => 'rw', isa => 'Bool', default => 0,
 );
@@ -112,7 +116,10 @@ sub find_avatar {
 
     warn "Finding avatar for $email\n" if $self->debug;
 
-    my $photo = $self->cache->get($email);
+    # Use the cache unless they want to refresh the cache
+    my $photo;
+    $photo = $self->cache->get($email) unless $self->refresh;
+
     if (!defined $photo) {
         my $url = gravatar_url(email => $email, default => q(""));
         $photo = $self->agent->get($url)->content;
