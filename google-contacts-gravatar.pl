@@ -47,8 +47,24 @@ has contacts => (
     is => 'rw', isa => 'ArrayRef',
 );
 
+has refresh => (
+    is => 'rw', isa => 'Bool', default => 0,
+);
+
 has debug => (
     is => 'rw', isa => 'Bool', default => 0,
+);
+
+has captcha => (
+    is => 'rw', isa => 'Str',
+);
+
+has captcha_token => (
+    is => 'rw', isa => 'Str',
+);
+
+has default_icon => (
+    is => 'rw', isa => 'Str', default => q(""),
 );
 
 has cache => (
@@ -69,9 +85,26 @@ sub run {
 sub authorize {
     my $self = shift;
 
-    my $resp = $self->authsub->login($self->email, $self->password);
-    $resp && $resp->is_success or die "Auth failed against " . $self->email;
-    $self->auth_params({ $self->authsub->auth_params });
+    my @login_options = ($self->email, $self->password);
+    if ($self->captcha && $self->captcha_token) {
+        push @login_options, (
+            logintoken   => $self->captcha_token,
+            logincaptcha => $self->captcha,
+        );
+    }
+    elsif ($self->captcha || $self->captcha_token) {
+        die "You must give both the --captcha and --captcha_token options together.\n";
+    }
+
+    my $resp = $self->authsub->login(@login_options);
+    if (!$resp->is_success && $resp->error eq 'CaptchaRequired') {
+        warn "CAPTCHA is required. Visit https://www.google.com", $resp->captchaurl, "=", $resp->captchatoken, "\n";
+        die "Run again with --captcha_token ", $resp->captchatoken, " --captcha <captcha-answer>\n";
+    }
+    else {
+        $resp && $resp->is_success or die "Auth failed against " . $self->email . ": " . $resp->error;
+        $self->auth_params({ $self->authsub->auth_params });
+    }
 }
 
 sub retrieve_contacts {
@@ -112,9 +145,12 @@ sub find_avatar {
 
     warn "Finding avatar for $email\n" if $self->debug;
 
-    my $photo = $self->cache->get($email);
+    # Use the cache unless they want to refresh the cache
+    my $photo;
+    $photo = $self->cache->get($email) unless $self->refresh;
+
     if (!defined $photo) {
-        my $url = gravatar_url(email => $email, default => q(""));
+        my $url = gravatar_url(email => $email, default => $self->default_icon);
         $photo = $self->agent->get($url)->content;
         $self->cache->set($email, $photo || 0); # cache non existent photo as 0
     }
