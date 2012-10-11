@@ -115,8 +115,8 @@ sub find_avatar {
     my $photo = $self->cache->get($email);
     if (!defined $photo) {
         my $url = gravatar_url(email => $email, default => q(""));
-        $photo = $self->agent->get($url)->content;
-        $self->cache->set($email, $photo || 0); # cache non existent photo as 0
+        my $res = $self->agent->get($url);
+        $self->cache->set($email, $res->code == 200 ? ($res->content || 0) : 0);
     }
 
     return $photo;
